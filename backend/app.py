@@ -71,7 +71,9 @@ SYMBOLS = {
     'NIFTY': '^NSEI',
     'SENSEX': '^BSESN',
     'BANKNIFTY': '^NSEBANK',
-    'CRUDEOIL': 'CL=F'
+    'CRUDEOIL': 'CL=F',
+    'GOLD': 'GC=F',
+    'SILVER': 'SI=F'
 }
 
 # Keep track of connected clients
@@ -99,12 +101,30 @@ def is_indian_market_open():
     
     return market_open <= now_ist <= market_close
 
+def is_commodity_market_open():
+    """Check if MCX (Commodities) is currently open.
+    Market hours: Mon-Fri 9:00 AM to 11:30 PM IST"""
+    import datetime
+    ist_offset = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+    now_ist = datetime.datetime.now(ist_offset)
+    
+    if now_ist.weekday() >= 5:
+        return False
+        
+    market_open = now_ist.replace(hour=9, minute=0, second=0, microsecond=0)
+    market_close = now_ist.replace(hour=23, minute=30, second=0, microsecond=0)
+    
+    return market_open <= now_ist <= market_close
+
 def fetch_and_emit(symbol_key, ticker):
     if simulator_active:
         return
     
-    # Don't fetch live prices when Indian market is closed
-    if not is_indian_market_open():
+    # Check market open status based on symbol type
+    is_commodity = symbol_key in ['CRUDEOIL', 'GOLD', 'SILVER']
+    is_open = is_commodity_market_open() if is_commodity else is_indian_market_open()
+    
+    if not is_open:
         return
         
     try:
@@ -208,16 +228,25 @@ def disconnect():
 
 @app.route('/api/market-status')
 def market_status():
+    asset_type = request.args.get('type', 'Equity')
     import datetime
     ist_offset = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
     now_ist = datetime.datetime.now(ist_offset)
-    is_open = is_indian_market_open()
+    
+    if asset_type == 'Commodity':
+        is_open = is_commodity_market_open()
+        m_open = '09:00'
+        m_close = '23:30'
+    else:
+        is_open = is_indian_market_open()
+        m_open = '09:15'
+        m_close = '15:30'
     
     return jsonify({
         'isOpen': is_open,
         'currentTimeIST': now_ist.strftime('%H:%M:%S'),
-        'marketOpen': '09:15',
-        'marketClose': '15:30',
+        'marketOpen': m_open,
+        'marketClose': m_close,
         'day': now_ist.strftime('%A')
     })
 
