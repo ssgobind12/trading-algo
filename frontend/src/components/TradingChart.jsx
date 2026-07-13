@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import klinecharts from 'klinecharts';
 import { io } from 'socket.io-client';
+import Draggable from 'react-draggable';
 const { init, dispose } = klinecharts;
 
 export default function TradingChart({ symbol, timeframe = '1D', clearTrigger, activeTool, manualSignal, chartSettings = {} }) {
@@ -650,95 +651,96 @@ export default function TradingChart({ symbol, timeframe = '1D', clearTrigger, a
         style={{ width: '100%', height: '100%', visibility: loading ? 'hidden' : 'visible' }} 
       />
       {zoneSignal && !activeTrade && (
-        <div style={{
-          position: 'absolute',
-          top: '16px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          backgroundColor: zoneSignal.color,
-          color: 'white',
-          padding: '8px 16px',
-          borderRadius: '6px',
-          fontWeight: 'bold',
-          fontSize: '14px',
-          letterSpacing: '0.5px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-          zIndex: 100,
-          border: '1px solid rgba(255,255,255,0.3)',
-          pointerEvents: 'none',
-          whiteSpace: 'nowrap'
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-            <div>{zoneSignal.text}</div>
-            {zoneSignal.buyTarget && zoneSignal.sellTarget && (
-              <div style={{ display: 'flex', gap: '16px', fontSize: '12px', opacity: 0.95, backgroundColor: 'rgba(0,0,0,0.2)', padding: '4px 12px', borderRadius: '4px' }}>
-                <span>Buy Suggestion: <b>{zoneSignal.buyTarget.toFixed(2)}</b></span>
-                <span>|</span>
-                <span>Sell Suggestion: <b>{zoneSignal.sellTarget.toFixed(2)}</b></span>
-              </div>
-            )}
+        <Draggable bounds="parent">
+          <div style={{
+            position: 'absolute',
+            top: '16px',
+            left: 'calc(50% - 150px)',
+            backgroundColor: zoneSignal.color,
+            color: 'white',
+            padding: '6px 12px',
+            borderRadius: '6px',
+            fontWeight: 'bold',
+            fontSize: '12px',
+            letterSpacing: '0.5px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+            zIndex: 100,
+            border: '1px solid rgba(255,255,255,0.3)',
+            cursor: 'grab',
+            whiteSpace: 'nowrap'
+          }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+              <div>{zoneSignal.text}</div>
+              {zoneSignal.buyTarget && zoneSignal.sellTarget && (
+                <div style={{ display: 'flex', gap: '12px', fontSize: '11px', opacity: 0.95, backgroundColor: 'rgba(0,0,0,0.2)', padding: '2px 8px', borderRadius: '4px' }}>
+                  <span>Buy Suggestion: <b>{zoneSignal.buyTarget.toFixed(2)}</b></span>
+                  <span>|</span>
+                  <span>Sell Suggestion: <b>{zoneSignal.sellTarget.toFixed(2)}</b></span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </Draggable>
       )}
       {activeTrade && (
-        <div style={{
-          position: 'absolute',
-          top: '16px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          backgroundColor: activeTrade.color,
-          color: 'white',
-          padding: '8px 16px',
-          borderRadius: '6px',
-          fontWeight: 'bold',
-          fontSize: '14px',
-          letterSpacing: '0.5px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-          zIndex: 100,
-          border: '1px solid rgba(255,255,255,0.3)',
-          pointerEvents: 'none',
-          whiteSpace: 'nowrap',
-          transition: 'top 0.3s ease'
-        }}>
-          {activeTrade.type === 'BUY' ? '🟢' : '🔴'} ACTIVE POSITION: {activeTrade.type} @ {activeTrade.price.toFixed(2)}
-        </div>
+        <Draggable bounds="parent">
+          <div style={{
+            position: 'absolute',
+            top: '16px',
+            left: 'calc(50% - 150px)',
+            backgroundColor: activeTrade.color,
+            color: 'white',
+            padding: '6px 12px',
+            borderRadius: '6px',
+            fontWeight: 'bold',
+            fontSize: '12px',
+            letterSpacing: '0.5px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+            zIndex: 100,
+            border: '1px solid rgba(255,255,255,0.3)',
+            cursor: 'grab',
+            whiteSpace: 'nowrap'
+          }}>
+            {activeTrade.type === 'BUY' ? '🟢' : '🔴'} ACTIVE POSITION: {activeTrade.type} @ {activeTrade.price.toFixed(2)}
+          </div>
+        </Draggable>
       )}
       
       {heroZeroAlert && (
-        <div style={{
-          position: 'absolute',
-          top: activeTrade ? '112px' : zoneSignal ? '64px' : '16px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          backgroundColor: heroZeroAlert.type === 'BUY' ? '#f5a623' : '#f23645',
-          padding: '12px',
-          borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-          zIndex: 100,
-          pointerEvents: 'none',
-          minWidth: '350px',
-          transition: 'top 0.3s ease',
-          animation: 'pulse 1.5s infinite'
-        }}>
-          <div style={{ textAlign: 'center', color: '#fff', fontWeight: 'bold', fontSize: '15px', marginBottom: '8px', textTransform: 'uppercase' }}>
-             🔥 {heroZeroAlert.type} NOW: {heroZeroAlert.contract} @ ₹{heroZeroAlert.estPrice} ({heroZeroAlert.reason})
-          </div>
-          <div style={{ 
-              backgroundColor: heroZeroAlert.type === 'BUY' ? '#c6841b' : '#b91c1c', 
-              borderRadius: '4px', 
-              padding: '6px 12px', 
-              display: 'flex', 
-              justifyContent: 'center', 
-              alignItems: 'center',
-              color: '#fff', 
-              fontSize: '13px', 
-              fontWeight: 'bold' 
+        <Draggable bounds="parent">
+          <div style={{
+            position: 'absolute',
+            top: activeTrade ? '70px' : zoneSignal ? '70px' : '16px',
+            left: 'calc(50% - 160px)',
+            backgroundColor: heroZeroAlert.type === 'BUY' ? '#f5a623' : '#f23645',
+            padding: '8px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+            zIndex: 100,
+            cursor: 'grab',
+            minWidth: '320px',
+            animation: 'pulse 1.5s infinite'
           }}>
-             <span>Buy Suggestion: {heroZeroAlert.buySuggestion}</span>
-             <span style={{ margin: '0 12px' }}>|</span>
-             <span>Sell Suggestion: {heroZeroAlert.sellSuggestion}</span>
+            <div style={{ textAlign: 'center', color: '#fff', fontWeight: 'bold', fontSize: '13px', marginBottom: '6px', textTransform: 'uppercase' }}>
+               🔥 {heroZeroAlert.type} NOW: {heroZeroAlert.contract} @ ₹{heroZeroAlert.estPrice} ({heroZeroAlert.reason})
+            </div>
+            <div style={{ 
+                backgroundColor: heroZeroAlert.type === 'BUY' ? '#c6841b' : '#b91c1c', 
+                borderRadius: '4px', 
+                padding: '4px 8px', 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                color: '#fff', 
+                fontSize: '11px', 
+                fontWeight: 'bold' 
+            }}>
+               <span>Buy Suggestion: {heroZeroAlert.buySuggestion}</span>
+               <span style={{ margin: '0 8px' }}>|</span>
+               <span>Sell Suggestion: {heroZeroAlert.sellSuggestion}</span>
+            </div>
           </div>
-        </div>
+        </Draggable>
       )}
       
       {decayState && (
