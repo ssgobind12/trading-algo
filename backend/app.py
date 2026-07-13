@@ -449,9 +449,16 @@ def get_news_sentiment():
         parsed_articles = []
         
         for item in news_items[:5]: # Take top 5 recent news
-            title = item.get('title', '')
-            publisher = item.get('publisher', 'Unknown')
-            link = item.get('link', '')
+            # yfinance news items often have a nested 'content' dictionary
+            content = item.get('content', item) # fallback to item if 'content' is missing
+            
+            title = content.get('title', '')
+            
+            provider = content.get('provider', {})
+            publisher = provider.get('displayName', item.get('publisher', 'Unknown'))
+            
+            url_obj = content.get('clickThroughUrl', {})
+            link = url_obj.get('url', item.get('link', ''))
             
             # Analyze sentiment of the title
             vs = analyzer.polarity_scores(title)
