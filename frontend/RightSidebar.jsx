@@ -248,7 +248,7 @@ export default function RightSidebar({ asset, autoTradeEnabled, toggleAutoTrade,
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: '13px', fontWeight: 'bold' }}>₹{h.current_price?.toFixed(2)}</div>
                           <div style={{ fontSize: '11px', color: h.day_change >= 0 ? 'var(--up-color)' : 'var(--down-color)' }}>
-                            {h.day_change >= 0 ? '+' : ''}{h.day_change_per?.toFixed(2)}%
+                            {h.day_change >= 0 ? '+' : ''}₹{Math.abs(h.day_change || 0).toFixed(2)} ({h.day_change >= 0 ? '+' : ''}{h.day_change_per?.toFixed(2)}%)
                           </div>
                         </div>
                       </div>
