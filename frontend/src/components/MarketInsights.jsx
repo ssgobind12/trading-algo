@@ -7,23 +7,37 @@ const MarketInsights = ({ symbol }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchInsights = async () => {
-      setLoading(true);
+      // Only set loading to true on the very first fetch
+      if (!fiiDii && !news) setLoading(true);
       try {
         const [fiiRes, newsRes] = await Promise.all([
           fetch('/api/fii-dii').then(res => res.json()).catch(() => null),
           fetch(`/api/news-sentiment?symbol=${symbol}`).then(res => res.json()).catch(() => null)
         ]);
         
-        setFiiDii(fiiRes);
-        setNews(newsRes);
+        if (isMounted) {
+          if (fiiRes && !fiiRes.error) setFiiDii(fiiRes);
+          // If fiiRes has an error, keep the old data or it will be handled by the backend's new fallback
+          if (newsRes) setNews(newsRes);
+        }
       } catch (err) {
         console.error("Error fetching insights:", err);
       }
-      setLoading(false);
+      if (isMounted) setLoading(false);
     };
 
     fetchInsights();
+    
+    // Auto-refresh every 60 seconds
+    const intervalId = setInterval(fetchInsights, 60000);
+    
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
   }, [symbol]);
 
   const getFiiDiiSentiment = () => {
