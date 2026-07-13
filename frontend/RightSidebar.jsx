@@ -11,6 +11,7 @@ export default function RightSidebar({ asset }) {
   const [portfolioError, setPortfolioError] = useState('');
   const [tradeHistory, setTradeHistory] = useState([]);
   const [priceBlink, setPriceBlink] = useState(false);
+  const [tradingMode, setTradingMode] = useState('real'); // 'real' or 'paper'
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -40,6 +41,12 @@ export default function RightSidebar({ asset }) {
           if (historyRes.ok) {
             const historyJson = await historyRes.json();
             setTradeHistory(historyJson);
+          }
+          
+          const modeRes = await fetch(`/api/trading-mode?username=${storedUsername}`);
+          if (modeRes.ok) {
+             const modeJson = await modeRes.json();
+             setTradingMode(modeJson.trading_mode || 'paper');
           }
         } else {
           setPortfolioError('Please login and connect Broker keys in settings.');
@@ -72,12 +79,38 @@ export default function RightSidebar({ asset }) {
       }
     });
 
-    return () => {
-      if (socket) socket.disconnect();
-    };
-  }, [asset]);
+    return () => socket.disconnect();
+  }, [asset.id]);
 
-  if (loading || !data) {
+  const toggleTradingMode = async (mode) => {
+    setTradingMode(mode);
+    const storedUsername = localStorage.getItem('auth_username');
+    if (storedUsername) {
+      try {
+        await fetch('/api/trading-mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: storedUsername, trading_mode: mode })
+        });
+        
+        // Refresh portfolio to get new balance
+        setPortfolio(null);
+        setPortfolioError('');
+        const portRes = await fetch(`/api/portfolio?username=${storedUsername}`);
+        if (portRes.ok) {
+          const portJson = await portRes.json();
+          setPortfolio(portJson);
+        } else {
+          const err = await portRes.json();
+          setPortfolioError(err.error || 'Failed to load portfolio');
+        }
+      } catch (err) {
+        console.error('Failed to change trading mode', err);
+      }
+    }
+  };
+
+  if (loading && !data) {
     return (
       <div style={{ width: '340px', minWidth: '340px', borderLeft: '1px solid var(--border-color)', backgroundColor: 'var(--panel-bg)', padding: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <span style={{ color: 'var(--text-muted)' }}>Loading Details...</span>
@@ -131,7 +164,22 @@ export default function RightSidebar({ asset }) {
       
       {activeTab === 'portfolio' && (
         <div style={{ padding: '20px 16px' }}>
-          {portfolioError ? (
+          <div style={{ display: 'flex', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '6px', padding: '2px', marginBottom: '16px' }}>
+            <button 
+              onClick={() => toggleTradingMode('paper')}
+              style={{ flex: 1, padding: '6px 0', fontSize: '12px', fontWeight: 'bold', border: 'none', borderRadius: '4px', cursor: 'pointer', backgroundColor: tradingMode === 'paper' ? 'var(--accent-color)' : 'transparent', color: tradingMode === 'paper' ? 'white' : 'var(--text-muted)' }}
+            >
+              Paper Trading
+            </button>
+            <button 
+              onClick={() => toggleTradingMode('real')}
+              style={{ flex: 1, padding: '6px 0', fontSize: '12px', fontWeight: 'bold', border: 'none', borderRadius: '4px', cursor: 'pointer', backgroundColor: tradingMode === 'real' ? '#10b981' : 'transparent', color: tradingMode === 'real' ? 'white' : 'var(--text-muted)' }}
+            >
+              Real Money
+            </button>
+          </div>
+          
+          {portfolioError && tradingMode === 'real' ? (
             <div style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', marginTop: '20px' }}>
               {portfolioError}
               <br/><br/>
@@ -140,9 +188,9 @@ export default function RightSidebar({ asset }) {
           ) : portfolio ? (
             <div>
               <div style={{ marginBottom: '24px', padding: '16px', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>Available Balance</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>Available Balance {tradingMode === 'paper' ? '(Fake)' : ''}</div>
                 <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--text-main)' }}>
-                  ₹{portfolio.balance?.balance ? parseFloat(portfolio.balance.balance).toFixed(2) : '0.00'}
+                  ₹{portfolio.balance?.balance !== undefined ? parseFloat(portfolio.balance.balance).toFixed(2) : (portfolio.balance !== undefined ? parseFloat(portfolio.balance).toFixed(2) : '0.00')}
                 </div>
               </div>
               

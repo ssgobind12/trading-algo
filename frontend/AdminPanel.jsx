@@ -48,6 +48,28 @@ export default function AdminPanel({ username }) {
     }
   };
 
+  const handleDelete = async (targetUsername) => {
+    if (!window.confirm(`Are you sure you want to permanently delete user ${targetUsername}?`)) return;
+    
+    try {
+      const res = await fetch('/api/admin/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_username: username, target_username: targetUsername })
+      });
+      
+      if (res.ok) {
+        alert(`User ${targetUsername} deleted successfully!`);
+        fetchUsers();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete user');
+      }
+    } catch (err) {
+      alert('Network error');
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <div style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
@@ -69,22 +91,32 @@ export default function AdminPanel({ username }) {
                 </div>
               </div>
               
-              {u.status === 'pending' && (
-                <div style={{ display: 'flex', gap: '6px' }}>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {u.status === 'pending' && (
+                  <>
+                    <button 
+                      onClick={() => handleStatusChange(u.username, 'approved')}
+                      style={{ padding: '6px 12px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
+                    >
+                      Approve
+                    </button>
+                    <button 
+                      onClick={() => handleStatusChange(u.username, 'rejected')}
+                      style={{ padding: '6px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
+                    >
+                      Reject
+                    </button>
+                  </>
+                )}
+                {u.status !== 'approved' && (
                   <button 
-                    onClick={() => handleStatusChange(u.username, 'approved')}
-                    style={{ padding: '6px 12px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
+                    onClick={() => handleDelete(u.username)}
+                    style={{ padding: '6px 12px', backgroundColor: 'transparent', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
                   >
-                    Approve
+                    Delete
                   </button>
-                  <button 
-                    onClick={() => handleStatusChange(u.username, 'rejected')}
-                    style={{ padding: '6px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
-                  >
-                    Reject
-                  </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           ))}
           {users.length === 0 && (
