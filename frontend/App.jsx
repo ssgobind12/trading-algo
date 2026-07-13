@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import TradingChart from './components/TradingChart';
 import RightSidebar from './components/RightSidebar';
 import Auth from './components/Auth';
+import AdminPanel from './components/AdminPanel';
 import { 
   Activity, Settings, Maximize2, Layout, 
   Crosshair, Minus, AlignRight, Share2, 
@@ -184,6 +185,8 @@ function App() {
   if (!isAuthenticated) {
     return <Auth onLogin={(user) => { setUsername(user); setIsAuthenticated(true); }} />;
   }
+
+  const isAdmin = username === 'admin' || username === 'ssgobind12@gmail.com';
 
   return (
     <div className="app-container">
@@ -426,6 +429,14 @@ function App() {
                >
                  Brokerages
                </button>
+               {isAdmin && (
+                 <button 
+                    onClick={() => setSettingsTab('admin')}
+                    style={{ flex: 1, padding: '8px', backgroundColor: settingsTab === 'admin' ? '#10b981' : 'transparent', color: 'white', border: '1px solid var(--border-color)', borderRadius: '4px', cursor: 'pointer' }}
+                 >
+                   Admin Panel
+                 </button>
+               )}
             </div>
             
             {settingsTab === 'chart' && (
@@ -520,6 +531,10 @@ function App() {
                     <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>When active, the AI engine will automatically place Buy/Sell orders using your broker API keys based on real-time market signals. Check your portfolio for a summary of executed trades.</span>
                   </div>
                 </div>
+            )}
+            
+            {settingsTab === 'admin' && isAdmin && (
+                <AdminPanel username={username} />
             )}
             
             <button 
