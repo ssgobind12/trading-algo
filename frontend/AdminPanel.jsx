@@ -26,22 +26,22 @@ export default function AdminPanel({ username }) {
     fetchUsers();
   }, [username]);
 
-  const handleApprove = async (targetUsername) => {
-    if (!window.confirm(`Approve user ${targetUsername}?`)) return;
+  const handleStatusChange = async (targetUsername, newStatus) => {
+    if (!window.confirm(`Mark user ${targetUsername} as ${newStatus}?`)) return;
     
     try {
-      const res = await fetch('/api/admin/approve', {
+      const res = await fetch('/api/admin/status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_username: username, target_username: targetUsername })
+        body: JSON.stringify({ admin_username: username, target_username: targetUsername, status: newStatus })
       });
       
       if (res.ok) {
-        alert(`${targetUsername} approved successfully!`);
+        alert(`${targetUsername} ${newStatus} successfully!`);
         fetchUsers();
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to approve');
+        alert(data.error || 'Failed to update status');
       }
     } catch (err) {
       alert('Network error');
@@ -64,18 +64,26 @@ export default function AdminPanel({ username }) {
             <div key={u.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
               <div>
                 <div style={{ fontWeight: 'bold', fontSize: '14px', color: 'white' }}>{u.username}</div>
-                <div style={{ fontSize: '12px', color: u.status === 'approved' ? '#10b981' : '#f59e0b' }}>
+                <div style={{ fontSize: '12px', color: u.status === 'approved' ? '#10b981' : (u.status === 'rejected' ? '#ef4444' : '#f59e0b') }}>
                   Status: {u.status.toUpperCase()}
                 </div>
               </div>
               
               {u.status === 'pending' && (
-                <button 
-                  onClick={() => handleApprove(u.username)}
-                  style={{ padding: '6px 12px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
-                >
-                  Approve
-                </button>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button 
+                    onClick={() => handleStatusChange(u.username, 'approved')}
+                    style={{ padding: '6px 12px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
+                  >
+                    Approve
+                  </button>
+                  <button 
+                    onClick={() => handleStatusChange(u.username, 'rejected')}
+                    style={{ padding: '6px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
+                  >
+                    Reject
+                  </button>
+                </div>
               )}
             </div>
           ))}
