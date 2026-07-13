@@ -12,11 +12,16 @@ import {
 } from 'lucide-react';
 import './index.css';
 
-const ASSETS = [
+const EQUITY_ASSETS = [
   { id: 'NIFTY', name: 'Nifty 50 Index', exchange: 'NSE' },
   { id: 'BANKNIFTY', name: 'Nifty Bank Index', exchange: 'NSE' },
   { id: 'SENSEX', name: 'Sensex Index', exchange: 'BSE' },
-  { id: 'CRUDEOIL', name: 'Crude Oil Futures', exchange: 'NYMEX' },
+];
+
+const COMMODITY_ASSETS = [
+  { id: 'CRUDEOIL', name: 'Crude Oil Futures', exchange: 'MCX' },
+  { id: 'GOLD', name: 'Gold Futures', exchange: 'MCX' },
+  { id: 'SILVER', name: 'Silver Futures', exchange: 'MCX' },
 ];
 
 function App() {
@@ -25,12 +30,20 @@ function App() {
   });
   const [username, setUsername] = useState(() => localStorage.getItem('auth_username') || '');
 
+  const [assetCategory, setAssetCategory] = useState(() => {
+    const saved = localStorage.getItem('assetCategory');
+    return saved || 'Equity';
+  });
+
+  const activeAssets = assetCategory === 'Equity' ? EQUITY_ASSETS : COMMODITY_ASSETS;
+
   const [selectedAsset, setSelectedAsset] = useState(() => {
     const saved = localStorage.getItem('selectedAssetId');
     if (saved) {
-      return ASSETS.find(a => a.id === saved) || ASSETS[0];
+      const found = [...EQUITY_ASSETS, ...COMMODITY_ASSETS].find(a => a.id === saved);
+      if (found) return found;
     }
-    return ASSETS[0];
+    return EQUITY_ASSETS[0];
   });
   
   const [timeframe, setTimeframe] = useState(() => {
@@ -62,7 +75,7 @@ function App() {
   // Fetch market status every 30 seconds
   useEffect(() => {
     const fetchStatus = () => {
-      fetch('/api/market-status')
+      fetch(`/api/market-status?type=${assetCategory}`)
         .then(res => res.json())
         .then(data => setMarketStatus(data))
         .catch(err => console.error(err));
@@ -70,7 +83,7 @@ function App() {
     fetchStatus();
     const interval = setInterval(fetchStatus, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [assetCategory]);
 
   // Add effect to load broker keys on mount
   useEffect(() => {
@@ -153,11 +166,22 @@ function App() {
   };
 
   const handleAssetChange = (e) => {
-    const newAsset = ASSETS.find(a => a.id === e.target.value);
-    setSelectedAsset(newAsset);
-    localStorage.setItem('selectedAssetId', newAsset.id);
+    const found = activeAssets.find(a => a.id === e.target.value);
+    if (found) {
+      setSelectedAsset(found);
+      localStorage.setItem('selectedAssetId', found.id);
+    }
   };
-  
+
+  const handleCategoryChange = (category) => {
+    setAssetCategory(category);
+    localStorage.setItem('assetCategory', category);
+    
+    // Switch to the first asset in the new category
+    const newAssets = category === 'Equity' ? EQUITY_ASSETS : COMMODITY_ASSETS;
+    setSelectedAsset(newAssets[0]);
+    localStorage.setItem('selectedAssetId', newAssets[0].id);
+  };
   const handleTimeframeChange = (e) => {
     const newTf = e.target.value;
     setTimeframe(newTf);
@@ -223,6 +247,21 @@ function App() {
         </div>
         
         <div className="top-bar-right">
+          <div style={{ display: 'flex', gap: '4px', backgroundColor: 'rgba(255,255,255,0.05)', padding: '2px', borderRadius: '6px' }}>
+            <button 
+              onClick={() => handleCategoryChange('Equity')}
+              style={{ padding: '4px 12px', fontSize: '12px', fontWeight: 'bold', border: 'none', borderRadius: '4px', cursor: 'pointer', backgroundColor: assetCategory === 'Equity' ? 'var(--accent-color)' : 'transparent', color: assetCategory === 'Equity' ? 'white' : 'var(--text-muted)' }}
+            >
+              Equity
+            </button>
+            <button 
+              onClick={() => handleCategoryChange('Commodity')}
+              style={{ padding: '4px 12px', fontSize: '12px', fontWeight: 'bold', border: 'none', borderRadius: '4px', cursor: 'pointer', backgroundColor: assetCategory === 'Commodity' ? 'var(--accent-color)' : 'transparent', color: assetCategory === 'Commodity' ? 'white' : 'var(--text-muted)' }}
+            >
+              Commodity
+            </button>
+          </div>
+          
           <select 
             value={selectedAsset.id}
             onChange={handleAssetChange}
@@ -238,7 +277,7 @@ function App() {
               outline: 'none'
             }}
           >
-            {ASSETS.map(asset => (
+            {activeAssets.map(asset => (
               <option key={asset.id} value={asset.id} style={{ backgroundColor: 'var(--panel-bg)' }}>
                 {asset.name}
               </option>
