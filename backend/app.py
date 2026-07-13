@@ -609,6 +609,34 @@ def get_portfolio():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+from ai_engine import MarketAIEngine
+
+@app.route('/api/advanced-signals')
+def get_advanced_signals():
+    symbol = request.args.get('symbol', 'NIFTY')
+    price_str = request.args.get('price')
+    if not price_str:
+        return jsonify({'error': 'price is required'}), 400
+    
+    try:
+        current_price = float(price_str)
+        # In a real system, we'd pull these values from cache or a database.
+        # For this logic, we use a basic mock since the focus is the engine logic structure.
+        fii_net = 1500
+        dii_net = 500
+        sentiment = 0.25
+        
+        signal = MarketAIEngine.generate_signal(
+            symbol=symbol,
+            current_price=current_price,
+            fii_net=fii_net,
+            dii_net=dii_net,
+            sentiment=sentiment
+        )
+        return jsonify(signal)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react_app(path):

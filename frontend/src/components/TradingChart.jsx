@@ -16,6 +16,7 @@ export default function TradingChart({ symbol, timeframe = '1D', clearTrigger, a
   const pivotsRef = useRef(null);
   const lastAlertRef = useRef(null);
   const moodRef = useRef('Neutral');
+  const latestPriceRef = useRef(null);
 
   const [panelPos, setPanelPos] = useState({ x: null, y: 16 });
   const [showChain, setShowChain] = useState(false);
@@ -293,6 +294,7 @@ export default function TradingChart({ symbol, timeframe = '1D', clearTrigger, a
             
             const microJitter = (Math.random() - 0.5) * jitterMagnitude;
           const newPrice = data.price + microJitter;
+          latestPriceRef.current = newPrice;
           
           // Map timeframe to milliseconds
           const tfToMs = {
@@ -481,22 +483,7 @@ export default function TradingChart({ symbol, timeframe = '1D', clearTrigger, a
              } catch(e) {}
           };
 
-          if (moodRef.current === 'Strong Buy') {
-              if (lastAlertRef.current !== 'BUY') {
-                  playBeep();
-                  lastAlertRef.current = 'BUY';
-              }
-              setHeroZeroAlert({ text: `🚀 BUY NOW HERO ZERO: ${ceExtreme} CE @ ₹${ceExtremeP.toFixed(1)} (AI Suggested: High Accuracy)`, color: '#f59e0b' });
-          } else if (moodRef.current === 'Strong Sell') {
-              if (lastAlertRef.current !== 'SELL') {
-                  playBeep();
-                  lastAlertRef.current = 'SELL';
-              }
-              setHeroZeroAlert({ text: `🚀 SELL NOW HERO ZERO: ${peExtreme} PE @ ₹${peExtremeP.toFixed(1)} (AI Suggested: High Accuracy)`, color: '#f23645' });
-          } else {
-              lastAlertRef.current = null;
-              setHeroZeroAlert(null);
-          }
+          // Removed synthetic alert logic
         }
       }
     });
@@ -507,6 +494,51 @@ export default function TradingChart({ symbol, timeframe = '1D', clearTrigger, a
       }
     };
   }, [symbol, timeframe]);
+
+  // Poll for Advanced AI Options Signals
+  useEffect(() => {
+    let intervalId;
+    
+    const fetchSignal = async () => {
+      if (!latestPriceRef.current) return; // Need a price to calculate
+      
+      try {
+        const res = await fetch(`/api/advanced-signals?symbol=${symbol}&price=${latestPriceRef.current}`);
+        if (res.ok) {
+          const signal = await res.json();
+          if (signal && signal.isActive) {
+             setHeroZeroAlert(signal);
+             
+             // Play sound if a new alert just triggered
+             if (lastAlertRef.current !== signal.type) {
+                lastAlertRef.current = signal.type;
+                try {
+                  const AudioContext = window.AudioContext || window.webkitAudioContext;
+                  const ctx = new AudioContext();
+                  const osc = ctx.createOscillator();
+                  const gain = ctx.createGain();
+                  osc.connect(gain);
+                  gain.connect(ctx.destination);
+                  osc.type = 'sine';
+                  osc.frequency.setValueAtTime(800, ctx.currentTime);
+                  gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                  osc.start();
+                  osc.stop(ctx.currentTime + 0.3);
+                } catch(e) {}
+             }
+          } else {
+             setHeroZeroAlert(null);
+             lastAlertRef.current = null;
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching advanced signal:", err);
+      }
+    };
+
+    intervalId = setInterval(fetchSignal, 5000);
+    return () => clearInterval(intervalId);
+  }, [symbol]);
 
   // Handle Clear Trigger
   useEffect(() => {
@@ -678,22 +710,34 @@ export default function TradingChart({ symbol, timeframe = '1D', clearTrigger, a
           top: activeTrade ? '112px' : zoneSignal ? '64px' : '16px',
           left: '50%',
           transform: 'translateX(-50%)',
-          backgroundColor: heroZeroAlert.color,
-          color: 'white',
-          padding: '8px 16px',
-          borderRadius: '6px',
-          fontWeight: 'bold',
-          fontSize: '14px',
-          letterSpacing: '0.5px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+          backgroundColor: heroZeroAlert.type === 'BUY' ? '#f5a623' : '#f23645',
+          padding: '12px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
           zIndex: 100,
-          border: '2px solid rgba(255, 215, 0, 0.8)',
           pointerEvents: 'none',
-          whiteSpace: 'nowrap',
+          minWidth: '350px',
           transition: 'top 0.3s ease',
           animation: 'pulse 1.5s infinite'
         }}>
-          {heroZeroAlert.text}
+          <div style={{ textAlign: 'center', color: '#fff', fontWeight: 'bold', fontSize: '15px', marginBottom: '8px', textTransform: 'uppercase' }}>
+             🔥 {heroZeroAlert.type} NOW: {heroZeroAlert.contract} @ ₹{heroZeroAlert.estPrice} ({heroZeroAlert.reason})
+          </div>
+          <div style={{ 
+              backgroundColor: heroZeroAlert.type === 'BUY' ? '#c6841b' : '#b91c1c', 
+              borderRadius: '4px', 
+              padding: '6px 12px', 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              color: '#fff', 
+              fontSize: '13px', 
+              fontWeight: 'bold' 
+          }}>
+             <span>Buy Suggestion: {heroZeroAlert.buySuggestion}</span>
+             <span style={{ margin: '0 12px' }}>|</span>
+             <span>Sell Suggestion: {heroZeroAlert.sellSuggestion}</span>
+          </div>
         </div>
       )}
       
