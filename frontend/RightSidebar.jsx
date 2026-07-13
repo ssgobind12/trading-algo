@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import MarketInsights from './MarketInsights';
 
-export default function RightSidebar({ asset }) {
+export default function RightSidebar({ asset, autoTradeEnabled, toggleAutoTrade, marketStatus }) {
   const [data, setData] = useState(null);
   const [newsData, setNewsData] = useState(null);
   const [loading, setLoading] = useState(true);
