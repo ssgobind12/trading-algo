@@ -992,6 +992,68 @@ def get_portfolio():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/manual-trade', methods=['POST'])
+def manual_trade():
+    data = request.json
+    username = data.get('username')
+    symbol = data.get('symbol')
+    side = data.get('side')
+    qty = data.get('quantity', 1)
+    
+    if not username or not symbol or not side:
+        return jsonify({'error': 'Missing parameters'}), 400
+        
+    is_commodity = symbol in ['CRUDEOIL', 'GOLD', 'SILVER']
+    if not (is_commodity_market_open() if is_commodity else is_indian_market_open()) and not simulator_active:
+        return jsonify({'error': 'Market is currently closed'}), 400
+        
+    try:
+        current_price = broker.fetch_live_price(SYMBOLS.get(symbol, '^NSEI'))
+        if current_price <= 0:
+            return jsonify({'error': 'Could not fetch live price'}), 400
+            
+        with sqlite3.connect(DB_FILE) as conn:
+            c = conn.cursor()
+            c.execute('SELECT groww_api_key, trading_mode, paper_balance FROM users WHERE username = ?', (username,))
+            row = c.fetchone()
+            if not row:
+                return jsonify({'error': 'User not found'}), 404
+                
+            api_key, trading_mode, paper_balance = row[0], row[1], row[2]
+            
+            cost = current_price * qty
+            if trading_mode == 'paper':
+                if side == 'BUY' and paper_balance < cost:
+                    return jsonify({'error': 'Insufficient paper balance'}), 400
+                    
+                new_balance = paper_balance - cost if side == 'BUY' else paper_balance + cost
+                c.execute("UPDATE users SET paper_balance = ? WHERE username = ?", (new_balance, username))
+                c.execute('''INSERT INTO trade_history 
+                             (username, symbol, side, quantity, price, status) 
+                             VALUES (?, ?, ?, ?, ?, ?)''',
+                          (username, symbol, side, qty, current_price, 'COMPLETED'))
+                conn.commit()
+                return jsonify({'message': f'Paper trade executed: {side} {qty} {symbol}', 'price': current_price})
+            else:
+                if not api_key:
+                    return jsonify({'error': 'Groww API keys not configured for real trading'}), 400
+                    
+                from brokers import GrowwAdapter
+                adapter = GrowwAdapter(api_key=api_key)
+                res = adapter.place_order(symbol, side, qty, current_price)
+                
+                if res.get('status') == 'SUCCESS':
+                    c.execute('''INSERT INTO trade_history 
+                                 (username, symbol, side, quantity, price, status) 
+                                 VALUES (?, ?, ?, ?, ?, ?)''',
+                              (username, symbol, side, qty, current_price, 'COMPLETED'))
+                    conn.commit()
+                    return jsonify({'message': f'Real trade executed: {side} {qty} {symbol}', 'price': current_price})
+                else:
+                    return jsonify({'error': 'Broker order failed'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 from ai_engine import MarketAIEngine
 
 @app.route('/api/advanced-signals')
