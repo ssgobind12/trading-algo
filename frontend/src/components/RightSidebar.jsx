@@ -105,15 +105,7 @@ export default function RightSidebar({ asset }) {
   };
 
   return (
-    <div style={{ 
-      width: '340px', 
-      minWidth: '340px',
-      borderLeft: '1px solid var(--border-color)', 
-      backgroundColor: 'var(--panel-bg)',
-      display: 'flex',
-      flexDirection: 'column',
-      overflowY: 'auto'
-    }}>
+    <div className="right-sidebar-panel">
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)' }}>
         <div 

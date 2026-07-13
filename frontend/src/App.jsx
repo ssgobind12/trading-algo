@@ -160,18 +160,10 @@ function App() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw' }}>
+    <div className="app-container">
       {/* Top Toolbar */}
-      <div style={{ 
-        height: '48px', 
-        backgroundColor: 'var(--panel-bg)', 
-        borderBottom: '1px solid var(--border-color)',
-        display: 'flex',
-        alignItems: 'center',
-        padding: '0 16px',
-        justifyContent: 'space-between'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+      <div className="top-bar">
+        <div className="top-bar-left">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)', fontWeight: 600 }}>
             <Activity size={20} color={isSimulatorMode ? "#f23645" : "var(--accent-color)"} />
             <span>Trading Algo UI</span>
@@ -182,10 +174,10 @@ function App() {
             )}
           </div>
           
-          <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-color)' }} />
+          <div className="toolbar-divider" style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-color)' }} />
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Hello, {username}</span>
           <button onClick={handleLogout} style={{ background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-muted)', borderRadius: '4px', padding: '4px 8px', fontSize: '12px', cursor: 'pointer' }}>Logout</button>
-          <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-color)' }} />
+          <div className="toolbar-divider" style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-color)' }} />
           
           {/* Market Status Badge */}
           {marketStatus && (
@@ -199,6 +191,9 @@ function App() {
               </span>
             </div>
           )}
+        </div>
+        
+        <div className="top-bar-right">
           <select 
             value={selectedAsset.id}
             onChange={handleAssetChange}
@@ -223,7 +218,7 @@ function App() {
 
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{selectedAsset.exchange}</span>
           
-          <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-color)' }} />
+          <div className="toolbar-divider" style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-color)' }} />
           
           {/* Interval Dropdown matched to TradingView styles */}
           <select 
@@ -257,21 +252,21 @@ function App() {
               <option value="1M" style={{ color: 'var(--text-main)' }}>1 month</option>
             </optgroup>
           </select>
-        </div>
 
-        <div style={{ display: 'flex', gap: '16px', color: 'var(--text-muted)' }}>
-          <Layout size={20} style={{ cursor: 'pointer' }} title="Layout Settings" onClick={() => { setSettingsTab('layout'); setIsSettingsOpen(true); }} />
-          <Settings size={20} style={{ cursor: 'pointer' }} title="Chart Settings" onClick={() => { setSettingsTab('chart'); setIsSettingsOpen(true); }} />
-          <Maximize2 size={20} style={{ cursor: 'pointer' }} title="Toggle Fullscreen" onClick={toggleFullScreen} />
+          <div style={{ display: 'flex', gap: '16px', color: 'var(--text-muted)', marginLeft: '8px' }}>
+            <Layout size={20} style={{ cursor: 'pointer' }} title="Layout Settings" onClick={() => { setSettingsTab('layout'); setIsSettingsOpen(true); }} />
+            <Settings size={20} style={{ cursor: 'pointer' }} title="Chart Settings" onClick={() => { setSettingsTab('chart'); setIsSettingsOpen(true); }} />
+            <Maximize2 size={20} style={{ cursor: 'pointer' }} title="Toggle Fullscreen" onClick={toggleFullScreen} />
+          </div>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div className="main-content">
         
         {/* Drawing Toolbar (Sidebar) */}
         {layoutSettings.showLeftToolbar && (
-          <div style={{ width: '48px', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 0', gap: '20px', backgroundColor: 'var(--panel-bg)' }}>
+          <div className="left-toolbar">
             <button 
               onClick={() => setManualSignal({ type: 'Buy', id: Date.now() })} 
               style={{ background: 'transparent', border: 'none', color: '#089981', cursor: 'pointer' }}
@@ -294,7 +289,7 @@ function App() {
               <PenLine size={20} />
             </button>
             
-            <div style={{ width: '24px', height: '1px', backgroundColor: 'var(--border-color)', margin: '8px 0' }} />
+            <div className="toolbar-divider" style={{ width: '24px', height: '1px', backgroundColor: 'var(--border-color)', margin: '8px 0' }} />
             
             <button onClick={() => setActiveTool('rayLine')} style={{ background: 'transparent', border: 'none', color: activeTool === 'rayLine' ? 'var(--accent-color)' : 'var(--text-muted)', cursor: 'pointer' }}>
               <Crosshair size={20} />
@@ -315,7 +310,7 @@ function App() {
               <Type size={20} />
             </button>
             
-            <div style={{ width: '24px', height: '1px', backgroundColor: 'var(--border-color)', margin: '8px 0' }} />
+            <div className="toolbar-divider" style={{ width: '24px', height: '1px', backgroundColor: 'var(--border-color)', margin: '8px 0' }} />
             
             <button style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
               <ZoomIn size={20} />
@@ -330,7 +325,7 @@ function App() {
               <EyeOff size={20} />
             </button>
             
-            <div style={{ width: '24px', height: '1px', backgroundColor: 'var(--border-color)', margin: '8px 0' }} />
+            <div className="toolbar-divider" style={{ width: '24px', height: '1px', backgroundColor: 'var(--border-color)', margin: '8px 0' }} />
             
             <button 
               onClick={() => {
@@ -338,7 +333,7 @@ function App() {
                 setClearTrigger(prev => prev + 1);
               }} 
               style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', marginTop: 'auto' }}
-              title="Wipe ALL Drawings (To delete just ONE line, click the line on the chart and press the Delete key on your keyboard)"
+              title="Wipe ALL Drawings"
             >
               <Trash2 size={20} />
             </button>
@@ -346,8 +341,8 @@ function App() {
         )}
 
         {/* Chart Area with Timeframe Toolbar */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-          <div style={{ flex: 1, position: 'relative' }}>
+        <div className="chart-container">
+          <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
             <TradingChart 
               symbol={selectedAsset.id} 
               timeframe={timeframe} 
@@ -360,7 +355,11 @@ function App() {
         </div>
 
         {/* Details Panel (Right Sidebar) */}
-        {layoutSettings.showRightSidebar && <RightSidebar asset={selectedAsset} />}
+        {layoutSettings.showRightSidebar && (
+          <div className="right-sidebar-container">
+            <RightSidebar asset={selectedAsset} />
+          </div>
+        )}
       </div>
       
       {/* Settings Modal */}
