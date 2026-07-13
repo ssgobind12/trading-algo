@@ -967,12 +967,46 @@ def get_portfolio():
             api_key, trading_mode, paper_balance = row[0], row[1], row[2]
             
             if trading_mode == 'paper':
-                # Return paper trading mock data
                 c.execute('SELECT symbol, side, quantity, price FROM trade_history WHERE username = ?', (username,))
                 trades = c.fetchall()
-                # A full simulator would calculate exact holdings from trades, for now we just show balance
+                
+                holdings_dict = {}
+                for symbol_id, side, qty, price in trades:
+                    if symbol_id not in holdings_dict:
+                        holdings_dict[symbol_id] = {'quantity': 0, 'total_cost': 0.0}
+                        
+                    if side == 'BUY':
+                        holdings_dict[symbol_id]['quantity'] += qty
+                        holdings_dict[symbol_id]['total_cost'] += price * qty
+                    elif side == 'SELL':
+                        if holdings_dict[symbol_id]['quantity'] > 0:
+                            avg_price = holdings_dict[symbol_id]['total_cost'] / holdings_dict[symbol_id]['quantity']
+                            sell_qty = min(qty, holdings_dict[symbol_id]['quantity'])
+                            holdings_dict[symbol_id]['quantity'] -= sell_qty
+                            holdings_dict[symbol_id]['total_cost'] -= avg_price * sell_qty
+                            
+                holdings_list = []
+                for symbol_id, data in holdings_dict.items():
+                    if data['quantity'] > 0:
+                        try:
+                            live_price = broker.fetch_live_price(SYMBOLS.get(symbol_id, '^NSEI'))
+                        except:
+                            live_price = 0
+                            
+                        avg_price = data['total_cost'] / data['quantity']
+                        day_change = live_price - avg_price
+                        day_change_per = (day_change / avg_price) * 100 if avg_price > 0 else 0
+                        
+                        holdings_list.append({
+                            'company_name': symbol_id,
+                            'quantity': data['quantity'],
+                            'current_price': live_price,
+                            'day_change': day_change * data['quantity'],
+                            'day_change_per': day_change_per
+                        })
+                        
                 return jsonify({
-                    'holdings': [],
+                    'holdings': holdings_list,
                     'balance': paper_balance
                 })
                 
@@ -983,7 +1017,12 @@ def get_portfolio():
         adapter = GrowwAdapter(api_key=api_key)
         
         holdings = adapter.get_holdings()
+        if isinstance(holdings, dict) and 'error' in holdings:
+            return jsonify({'error': holdings['error']}), 400
+            
         balance = adapter.get_balance()
+        if isinstance(balance, dict) and 'error' in balance:
+            return jsonify({'error': balance['error']}), 400
         
         return jsonify({
             'holdings': holdings,
