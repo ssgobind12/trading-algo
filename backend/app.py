@@ -27,7 +27,8 @@ def init_db():
                 password_hash TEXT NOT NULL,
                 groww_api_key TEXT,
                 groww_api_secret TEXT,
-                auto_trade_enabled BOOLEAN DEFAULT 0
+                auto_trade_enabled BOOLEAN DEFAULT 0,
+                status TEXT DEFAULT 'pending'
             )
         ''')
         c.execute('''
@@ -49,7 +50,14 @@ def init_db():
             c.execute('ALTER TABLE users ADD COLUMN auto_trade_enabled BOOLEAN DEFAULT 0')
             conn.commit()
         except sqlite3.OperationalError:
-            # Column already exists
+            pass
+
+        # Retrofit existing table if status column is missing
+        try:
+            c.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'pending'")
+            c.execute("UPDATE users SET status = 'approved'")
+            conn.commit()
+        except sqlite3.OperationalError:
             pass
 
 init_db()
@@ -642,10 +650,13 @@ def register():
                 
             # Create new user
             pwd_hash = generate_password_hash(password)
-            c.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', (username, pwd_hash))
+            c.execute("INSERT INTO users (username, password_hash, status) VALUES (?, ?, 'pending')", (username, pwd_hash))
             conn.commit()
             
-            return jsonify({'message': 'User created successfully', 'username': username}), 201
+            return jsonify({
+                'message': 'Registration successful! To activate your account, please send ₹100 to ssgobind12@gmail.com via UPI and wait for the admin to approve your account.', 
+                'username': username
+            }), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -661,13 +672,48 @@ def login():
     try:
         with sqlite3.connect(DB_FILE) as conn:
             c = conn.cursor()
-            c.execute('SELECT password_hash FROM users WHERE username = ?', (username,))
+            c.execute('SELECT password_hash, status FROM users WHERE username = ?', (username,))
             row = c.fetchone()
             
             if row and check_password_hash(row[0], password):
+                if row[1] == 'pending' and username not in ['admin', 'ssgobind12@gmail.com']:
+                    return jsonify({'error': 'Account pending admin approval. Please pay ₹100 to ssgobind12@gmail.com and wait for approval.'}), 403
                 return jsonify({'message': 'Login successful', 'username': username, 'token': 'fake-jwt-token-123'}), 200
             else:
                 return jsonify({'error': 'Invalid User ID or Password'}), 401
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/users', methods=['GET'])
+def admin_get_users():
+    username = request.args.get('username')
+    if username not in ['admin', 'ssgobind12@gmail.com']:
+        return jsonify({'error': 'Unauthorized'}), 403
+        
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            c = conn.cursor()
+            c.execute('SELECT id, username, status FROM users ORDER BY id DESC')
+            users = [{'id': r[0], 'username': r[1], 'status': r[2]} for r in c.fetchall()]
+            return jsonify(users)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/approve', methods=['POST'])
+def admin_approve_user():
+    data = request.json
+    admin_username = data.get('admin_username')
+    target_username = data.get('target_username')
+    
+    if admin_username not in ['admin', 'ssgobind12@gmail.com']:
+        return jsonify({'error': 'Unauthorized'}), 403
+        
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            c = conn.cursor()
+            c.execute("UPDATE users SET status = 'approved' WHERE username = ?", (target_username,))
+            conn.commit()
+            return jsonify({'message': f'User {target_username} approved successfully'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
