@@ -519,6 +519,11 @@ def get_fii_dii():
                 elif item['category'] == 'FII/FPI':
                     fii_net = float(item['netValue'])
                     
+            import datetime
+            today_str = datetime.datetime.now().strftime("%d-%b-%Y")
+            if date != today_str:
+                raise Exception("Stale data, triggering live estimator")
+                
             return jsonify({
                 'fii_net': fii_net,
                 'dii_net': dii_net,
