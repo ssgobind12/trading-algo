@@ -5,13 +5,11 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import yfinance as yf
 import pandas as pd
 import time
-import eventlet
-from brokers import YahooFinanceAdapter
-import eventlet
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 from flask import Flask, jsonify, request, send_from_directory
+from brokers import YahooFinanceAdapter
 
 # Configure Flask to serve static files from the React dist folder
 app = Flask(__name__, static_folder='../frontend/dist', static_url_path='/')
@@ -26,7 +24,9 @@ def init_db():
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL
+                password_hash TEXT NOT NULL,
+                groww_api_key TEXT,
+                groww_api_secret TEXT
             )
         ''')
         conn.commit()
@@ -95,7 +95,7 @@ def background_thread():
         socketio.sleep(1) # Poll every 1 second for ultra-fast live ticks
         if clients > 0:
             for symbol_key, ticker in SYMBOLS.items():
-                eventlet.spawn(fetch_and_emit, symbol_key, ticker)
+                socketio.start_background_task(fetch_and_emit, symbol_key, ticker)
 
 @socketio.on('connect')
 def connect():
@@ -354,7 +354,7 @@ def simulator_loop():
     print("Simulator loop starting...")
     idx = 0
     while simulator_active:
-        eventlet.sleep(1) # 1 candle per second
+        socketio.sleep(1) # 1 candle per second
         if clients > 0 and simulator_data:
             for symbol_key, df in simulator_data.items():
                 if idx < len(df):
@@ -385,7 +385,7 @@ def toggle_simulator():
             simulator_data[symbol_key] = df
         
         simulator_active = True
-        eventlet.spawn(simulator_loop)
+        socketio.start_background_task(simulator_loop)
         return jsonify({"status": "Simulator started"})
     elif not activate and simulator_active:
         simulator_active = False
@@ -482,7 +482,7 @@ def login():
     data = request.json
     username = data.get('username')
     password = data.get('password')
-    socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
+    
     if not username or not password:
         return jsonify({'error': 'Username and password are required'}), 400
         
@@ -583,7 +583,7 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     print(f"Starting WebSocket Server on port {port}...")
     socketio.start_background_task(background_thread)
-    socketio.run(app, port=port, debug=False, allow_unsafe_werkzeug=True)
+    socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
 else:
     # When running under gunicorn, start the background thread
     socketio.start_background_task(background_thread)
