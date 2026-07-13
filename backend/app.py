@@ -683,6 +683,8 @@ def login():
             if row and check_password_hash(row[0], password):
                 if row[1] == 'pending' and username not in ['admin', 'ssgobind12@gmail.com']:
                     return jsonify({'error': 'Account pending admin approval. Please pay ₹100 to ssgobind12@gmail.com and wait for approval.'}), 403
+                if row[1] == 'rejected' and username not in ['admin', 'ssgobind12@gmail.com']:
+                    return jsonify({'error': 'Your account registration was rejected by the admin.'}), 403
                 return jsonify({'message': 'Login successful', 'username': username, 'token': 'fake-jwt-token-123'}), 200
             else:
                 return jsonify({'error': 'Invalid User ID or Password'}), 401
@@ -704,11 +706,12 @@ def admin_get_users():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/admin/approve', methods=['POST'])
-def admin_approve_user():
+@app.route('/api/admin/status', methods=['POST'])
+def admin_set_status():
     data = request.json
     admin_username = data.get('admin_username')
     target_username = data.get('target_username')
+    new_status = data.get('status')
     
     if admin_username not in ['admin', 'ssgobind12@gmail.com']:
         return jsonify({'error': 'Unauthorized'}), 403
@@ -716,9 +719,9 @@ def admin_approve_user():
     try:
         with sqlite3.connect(DB_FILE) as conn:
             c = conn.cursor()
-            c.execute("UPDATE users SET status = 'approved' WHERE username = ?", (target_username,))
+            c.execute("UPDATE users SET status = ? WHERE username = ?", (new_status, target_username))
             conn.commit()
-            return jsonify({'message': f'User {target_username} approved successfully'})
+            return jsonify({'message': f'User {target_username} marked as {new_status}'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
