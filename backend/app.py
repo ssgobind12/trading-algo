@@ -26,10 +26,31 @@ def init_db():
                 username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 groww_api_key TEXT,
-                groww_api_secret TEXT
+                groww_api_secret TEXT,
+                auto_trade_enabled BOOLEAN DEFAULT 0
+            )
+        ''')
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS trade_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                side TEXT NOT NULL,
+                quantity INTEGER NOT NULL,
+                price REAL NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                status TEXT DEFAULT 'COMPLETED'
             )
         ''')
         conn.commit()
+        
+        # Retrofit existing table if auto_trade_enabled column is missing
+        try:
+            c.execute('ALTER TABLE users ADD COLUMN auto_trade_enabled BOOLEAN DEFAULT 0')
+            conn.commit()
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
 
 init_db()
 # ----------------------
@@ -96,6 +117,74 @@ def background_thread():
         if clients > 0:
             for symbol_key, ticker in SYMBOLS.items():
                 socketio.start_background_task(fetch_and_emit, symbol_key, ticker)
+
+def auto_trade_thread():
+    """Background thread that executes automated trades based on AI signals"""
+    print("Starting background auto-trade thread...")
+    while True:
+        socketio.sleep(10) # Poll every 10 seconds
+        if not is_indian_market_open() and not simulator_active:
+            continue
+            
+        try:
+            with sqlite3.connect(DB_FILE) as conn:
+                c = conn.cursor()
+                c.execute('SELECT username, groww_api_key, groww_api_secret FROM users WHERE auto_trade_enabled = 1')
+                auto_traders = c.fetchall()
+                
+            if not auto_traders:
+                continue
+                
+            # For each asset, check signal
+            from ai_engine import MarketAIEngine
+            engine = MarketAIEngine()
+            
+            for symbol_key, ticker in SYMBOLS.items():
+                try:
+                    current_price = broker.fetch_live_price(ticker)
+                    if current_price <= 0: continue
+                    
+                    # Generate mock signal for auto trade
+                    fii_net = 1500
+                    dii_net = -800
+                    news_score = 6.5
+                    
+                    signal, confidence, reasoning = engine.generate_signal(
+                        symbol=symbol_key,
+                        current_price=current_price,
+                        fii_net=fii_net,
+                        dii_net=dii_net,
+                        news_score=news_score,
+                        rsi_14=45.0,
+                        macd_hist=1.2,
+                        vwap=current_price - 10
+                    )
+                    
+                    if confidence >= 80 and signal in ['Buy', 'Sell']:
+                        side = 'BUY' if signal == 'Buy' else 'SELL'
+                        qty = 10 # Default mock qty
+                        
+                        from brokers import GrowwAdapter
+                        for username, api_key, api_secret in auto_traders:
+                            if not api_key: continue
+                            
+                            adapter = GrowwAdapter(api_key=api_key)
+                            res = adapter.place_order(symbol_key, side, qty, current_price)
+                            
+                            if res.get('status') == 'SUCCESS':
+                                # Log to trade_history
+                                with sqlite3.connect(DB_FILE) as conn:
+                                    c = conn.cursor()
+                                    c.execute('''INSERT INTO trade_history 
+                                                 (username, symbol, side, quantity, price) 
+                                                 VALUES (?, ?, ?, ?, ?)''',
+                                              (username, symbol_key, side, qty, current_price))
+                                    conn.commit()
+                                print(f"Auto-trade executed for {username}: {side} {qty} {symbol_key} at {current_price}")
+                except Exception as e:
+                    print(f"Error in auto trade evaluation for {symbol_key}: {e}")
+        except Exception as e:
+            print(f"Error in auto trade thread: {e}")
 
 @socketio.on('connect')
 def connect():
@@ -625,6 +714,65 @@ def broker_keys():
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
+@app.route('/api/auto-trade', methods=['GET', 'POST'])
+def auto_trade():
+    if request.method == 'GET':
+        username = request.args.get('username')
+        if not username:
+            return jsonify({'error': 'Unauthorized'}), 401
+            
+        try:
+            with sqlite3.connect(DB_FILE) as conn:
+                c = conn.cursor()
+                c.execute('SELECT auto_trade_enabled FROM users WHERE username = ?', (username,))
+                row = c.fetchone()
+                if row:
+                    return jsonify({'auto_trade_enabled': bool(row[0])})
+                return jsonify({'error': 'User not found'}), 404
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    if request.method == 'POST':
+        data = request.json
+        username = data.get('username')
+        enabled = data.get('enabled')
+        
+        if not username:
+            return jsonify({'error': 'Unauthorized'}), 401
+            
+        try:
+            with sqlite3.connect(DB_FILE) as conn:
+                c = conn.cursor()
+                c.execute('UPDATE users SET auto_trade_enabled = ? WHERE username = ?', 
+                          (1 if enabled else 0, username))
+                conn.commit()
+            return jsonify({'message': 'Auto-trade settings updated'})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+@app.route('/api/trade-history')
+def get_trade_history():
+    username = request.args.get('username')
+    if not username:
+        return jsonify({'error': 'Unauthorized'}), 401
+        
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            c = conn.cursor()
+            c.execute('SELECT symbol, side, quantity, price, timestamp, status FROM trade_history WHERE username = ? ORDER BY timestamp DESC', (username,))
+            rows = c.fetchall()
+            trades = [{
+                'symbol': r[0],
+                'side': r[1],
+                'quantity': r[2],
+                'price': r[3],
+                'timestamp': r[4],
+                'status': r[5]
+            } for r in rows]
+            return jsonify(trades)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/portfolio')
 def get_portfolio():
     username = request.args.get('username')
@@ -694,7 +842,9 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     print(f"Starting WebSocket Server on port {port}...")
     socketio.start_background_task(background_thread)
+    socketio.start_background_task(auto_trade_thread)
     socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
 else:
     # When running under gunicorn, start the background thread
     socketio.start_background_task(background_thread)
+    socketio.start_background_task(auto_trade_thread)
