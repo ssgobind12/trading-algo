@@ -482,7 +482,7 @@ def login():
     data = request.json
     username = data.get('username')
     password = data.get('password')
-    
+    socketio.run(app, port=port, debug=False, allow_unsafe_werkzeug=True)
     if not username or not password:
         return jsonify({'error': 'Username and password are required'}), 400
         
