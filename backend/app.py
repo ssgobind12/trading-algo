@@ -394,6 +394,44 @@ def toggle_simulator():
         
     return jsonify({"status": "No change"})
 
+import requests
+
+@app.route('/api/fii-dii')
+def get_fii_dii():
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': '*/*'
+        }
+        url = "https://www.nseindia.com/api/fiidiiTradeReact"
+        
+        session = requests.Session()
+        session.get("https://www.nseindia.com", headers=headers, timeout=5)
+        res = session.get(url, headers=headers, timeout=5)
+        
+        if res.status_code == 200:
+            data = res.json()
+            # The API returns a list of dictionaries for DII and FII/FPI
+            fii_net = 0
+            dii_net = 0
+            date = ""
+            for item in data:
+                if item['category'] == 'DII':
+                    dii_net = float(item['netValue'])
+                    date = item['date']
+                elif item['category'] == 'FII/FPI':
+                    fii_net = float(item['netValue'])
+                    
+            return jsonify({
+                'fii_net': fii_net,
+                'dii_net': dii_net,
+                'date': date
+            })
+        else:
+            return jsonify({'error': 'Failed to fetch from NSE', 'status': res.status_code}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/news-sentiment')
 def get_news_sentiment():
     symbol_key = request.args.get('symbol', 'NIFTY')

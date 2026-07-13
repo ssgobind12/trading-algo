@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
+import MarketInsights from './MarketInsights';
 
 export default function RightSidebar({ asset }) {
   const [data, setData] = useState(null);
@@ -223,7 +224,11 @@ export default function RightSidebar({ asset }) {
           </div>
         </div>
       </div>
-
+      
+      {/* Market Insights Widget */}
+      <div style={{ padding: '16px' }}>
+         <MarketInsights symbol={asset.id} />
+      </div>
 
       {/* Options Momentum Recommendation */}
       <div style={{ padding: '20px 16px', borderBottom: '1px solid var(--border-color)', marginBottom: '20px' }}>

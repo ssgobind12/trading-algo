@@ -533,8 +533,21 @@ export default function TradingChart({ symbol, timeframe = '1D', clearTrigger, a
     const chart = chartInstanceRef.current;
     
     try {
-      if (chartSettings.ema) chart.createIndicator('EMA', false, { id: 'candle_pane' });
-      else chart.removeIndicator('candle_pane', 'EMA');
+      if (chartSettings.ema) {
+        chart.createIndicator({
+          name: 'EMA',
+          calcParams: [9, 21, 50],
+          styles: {
+            lines: [
+              { color: '#FFD700', size: 2 }, // Golden (Buy)
+              { color: '#FF0000', size: 2 }, // Red (Sell)
+              { color: '#FFC0CB', size: 2 }  // Pink (Hold)
+            ]
+          }
+        }, false, { id: 'candle_pane' });
+      } else {
+        chart.removeIndicator('candle_pane', 'EMA');
+      }
       
       if (chartSettings.volume) chart.createIndicator('VOL', false, { id: 'pane_vol', height: 100 });
       else chart.removeIndicator('pane_vol');
