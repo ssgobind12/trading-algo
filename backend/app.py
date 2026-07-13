@@ -60,6 +60,14 @@ def init_db():
         except sqlite3.OperationalError:
             pass
 
+        # Retrofit paper trading columns
+        try:
+            c.execute("ALTER TABLE users ADD COLUMN trading_mode TEXT DEFAULT 'paper'")
+            c.execute("ALTER TABLE users ADD COLUMN paper_balance REAL DEFAULT 5000.0")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
 init_db()
 # ----------------------
 CORS(app) # Allow cross-origin requests from the React frontend
@@ -151,13 +159,13 @@ def auto_trade_thread():
     print("Starting background auto-trade thread...")
     while True:
         socketio.sleep(10) # Poll every 10 seconds
-        if not is_indian_market_open() and not simulator_active:
+        if simulator_active:
             continue
             
         try:
             with sqlite3.connect(DB_FILE) as conn:
                 c = conn.cursor()
-                c.execute('SELECT username, groww_api_key, groww_api_secret FROM users WHERE auto_trade_enabled = 1')
+                c.execute('SELECT username, groww_api_key, groww_api_secret, trading_mode, paper_balance FROM users WHERE auto_trade_enabled = 1')
                 auto_traders = c.fetchall()
                 
             if not auto_traders:
@@ -168,6 +176,10 @@ def auto_trade_thread():
             engine = MarketAIEngine()
             
             for symbol_key, ticker in SYMBOLS.items():
+                is_commodity = symbol_key in ['CRUDEOIL', 'GOLD', 'SILVER']
+                if not (is_commodity_market_open() if is_commodity else is_indian_market_open()):
+                    continue
+                    
                 try:
                     current_price = broker.fetch_live_price(ticker)
                     if current_price <= 0: continue
@@ -193,22 +205,44 @@ def auto_trade_thread():
                         qty = 10 # Default mock qty
                         
                         from brokers import GrowwAdapter
-                        for username, api_key, api_secret in auto_traders:
-                            if not api_key: continue
+                        for username, api_key, api_secret, trading_mode, paper_balance in auto_traders:
+                            qty = 10 # Default mock qty
+                            cost = current_price * qty
+                            trade_executed = False
                             
-                            adapter = GrowwAdapter(api_key=api_key)
-                            res = adapter.place_order(symbol_key, side, qty, current_price)
-                            
-                            if res.get('status') == 'SUCCESS':
-                                # Log to trade_history
+                            if trading_mode == 'paper':
+                                # Execute paper trade
+                                if side == 'BUY' and paper_balance < cost:
+                                    continue # Insufficient fake funds
+                                    
+                                new_balance = paper_balance - cost if side == 'BUY' else paper_balance + cost
                                 with sqlite3.connect(DB_FILE) as conn:
                                     c = conn.cursor()
+                                    c.execute("UPDATE users SET paper_balance = ? WHERE username = ?", (new_balance, username))
                                     c.execute('''INSERT INTO trade_history 
                                                  (username, symbol, side, quantity, price) 
                                                  VALUES (?, ?, ?, ?, ?)''',
                                               (username, symbol_key, side, qty, current_price))
                                     conn.commit()
-                                print(f"Auto-trade executed for {username}: {side} {qty} {symbol_key} at {current_price}")
+                                trade_executed = True
+                            else:
+                                # Execute real money trade
+                                if not api_key: continue
+                                adapter = GrowwAdapter(api_key=api_key)
+                                res = adapter.place_order(symbol_key, side, qty, current_price)
+                                
+                                if res.get('status') == 'SUCCESS':
+                                    with sqlite3.connect(DB_FILE) as conn:
+                                        c = conn.cursor()
+                                        c.execute('''INSERT INTO trade_history 
+                                                     (username, symbol, side, quantity, price) 
+                                                     VALUES (?, ?, ?, ?, ?)''',
+                                                  (username, symbol_key, side, qty, current_price))
+                                        conn.commit()
+                                    trade_executed = True
+                                    
+                            if trade_executed:
+                                print(f"Auto-trade [{trading_mode}] executed for {username}: {side} {qty} {symbol_key} at {current_price}")
                 except Exception as e:
                     print(f"Error in auto trade evaluation for {symbol_key}: {e}")
         except Exception as e:
@@ -754,6 +788,66 @@ def admin_set_status():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/admin/delete', methods=['POST'])
+def admin_delete_user():
+    data = request.json
+    admin_username = data.get('admin_username')
+    target_username = data.get('target_username')
+    
+    if admin_username not in ['admin', 'ssgobind12@gmail.com']:
+        return jsonify({'error': 'Unauthorized'}), 403
+        
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            c = conn.cursor()
+            c.execute('SELECT status FROM users WHERE username = ?', (target_username,))
+            row = c.fetchone()
+            if not row:
+                return jsonify({'error': 'User not found'}), 404
+            if row[0] == 'approved':
+                return jsonify({'error': 'Cannot delete an approved user'}), 400
+                
+            c.execute('DELETE FROM users WHERE username = ?', (target_username,))
+            conn.commit()
+            return jsonify({'message': f'User {target_username} deleted successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/trading-mode', methods=['GET', 'POST'])
+def handle_trading_mode():
+    if request.method == 'GET':
+        username = request.args.get('username')
+        if not username:
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        try:
+            with sqlite3.connect(DB_FILE) as conn:
+                c = conn.cursor()
+                c.execute('SELECT trading_mode, paper_balance FROM users WHERE username = ?', (username,))
+                row = c.fetchone()
+                if row:
+                    return jsonify({'trading_mode': row[0], 'paper_balance': row[1]})
+                return jsonify({'error': 'User not found'}), 404
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    if request.method == 'POST':
+        data = request.json
+        username = data.get('username')
+        mode = data.get('trading_mode') # 'paper' or 'real'
+        
+        if not username or mode not in ['paper', 'real']:
+            return jsonify({'error': 'Invalid data'}), 400
+            
+        try:
+            with sqlite3.connect(DB_FILE) as conn:
+                c = conn.cursor()
+                c.execute("UPDATE users SET trading_mode = ? WHERE username = ?", (mode, username))
+                conn.commit()
+                return jsonify({'message': 'Trading mode updated'})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
 @app.route('/api/broker-keys', methods=['GET', 'POST'])
 def broker_keys():
     # In a real app we'd use the token/session. For demo we assume the user sends username.
@@ -865,12 +959,25 @@ def get_portfolio():
     try:
         with sqlite3.connect(DB_FILE) as conn:
             c = conn.cursor()
-            c.execute('SELECT groww_api_key FROM users WHERE username = ?', (username,))
+            c.execute('SELECT groww_api_key, trading_mode, paper_balance FROM users WHERE username = ?', (username,))
             row = c.fetchone()
-            if not row or not row[0]:
-                return jsonify({'error': 'Groww API keys not configured'}), 404
+            if not row:
+                return jsonify({'error': 'User not found'}), 404
                 
-            api_key = row[0]
+            api_key, trading_mode, paper_balance = row[0], row[1], row[2]
+            
+            if trading_mode == 'paper':
+                # Return paper trading mock data
+                c.execute('SELECT symbol, side, quantity, price FROM trade_history WHERE username = ?', (username,))
+                trades = c.fetchall()
+                # A full simulator would calculate exact holdings from trades, for now we just show balance
+                return jsonify({
+                    'holdings': [],
+                    'balance': paper_balance
+                })
+                
+            if not api_key:
+                return jsonify({'error': 'Groww API keys not configured'}), 404
             
         from brokers import GrowwAdapter
         adapter = GrowwAdapter(api_key=api_key)
