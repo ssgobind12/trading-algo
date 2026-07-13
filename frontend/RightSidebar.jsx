@@ -110,6 +110,46 @@ export default function RightSidebar({ asset }) {
     }
   };
 
+  const handleManualTrade = async (side) => {
+    const storedUsername = localStorage.getItem('auth_username');
+    if (!storedUsername) return alert('Please login first');
+    
+    // Check if market is open before sending request (unless simulator)
+    const isCommodity = ['CRUDEOIL', 'GOLD', 'SILVER'].includes(asset.id);
+    if (!marketStatus?.isOpen && !isCommodity && tradingMode !== 'paper') {
+       // Wait, marketStatus has isOpen which handles commodity if we passed it correctly
+       // Actually let's just let the backend handle the exact validation and return the error.
+    }
+    
+    try {
+      const res = await fetch('/api/manual-trade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: storedUsername,
+          symbol: asset.id,
+          side: side,
+          quantity: 10 // default
+        })
+      });
+      const json = await res.json();
+      
+      if (res.ok) {
+        alert(json.message);
+        // Refresh history and portfolio
+        const historyRes = await fetch(`/api/trade-history?username=${storedUsername}`);
+        if (historyRes.ok) setTradeHistory(await historyRes.json());
+        
+        const portRes = await fetch(`/api/portfolio?username=${storedUsername}`);
+        if (portRes.ok) setPortfolio(await portRes.json());
+      } else {
+        alert(json.error || 'Trade failed');
+      }
+    } catch (err) {
+      alert('Network error');
+    }
+  };
+
   if (loading && !data) {
     return (
       <div style={{ width: '340px', minWidth: '340px', borderLeft: '1px solid var(--border-color)', backgroundColor: 'var(--panel-bg)', padding: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
@@ -223,9 +263,35 @@ export default function RightSidebar({ asset }) {
               
               {/* Auto Trade History */}
               <div style={{ padding: '24px 16px 16px 16px' }}>
-                <h3 style={{ fontSize: '14px', color: 'var(--text-main)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  🤖 Auto-Trade History
-                </h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h3 style={{ fontSize: '14px', color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    🤖 Auto-Trade History
+                  </h3>
+                  
+                  {/* Auto Trade ON/OFF Toggle */}
+                  {toggleAutoTrade && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Bot:</span>
+                      <button 
+                        onClick={() => toggleAutoTrade(!autoTradeEnabled)}
+                        style={{ 
+                          padding: '4px 12px', 
+                          fontSize: '11px', 
+                          fontWeight: 'bold', 
+                          border: 'none', 
+                          borderRadius: '12px', 
+                          cursor: 'pointer',
+                          backgroundColor: autoTradeEnabled ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                          color: autoTradeEnabled ? '#10b981' : '#ef4444',
+                          border: `1px solid ${autoTradeEnabled ? '#10b981' : '#ef4444'}`
+                        }}
+                      >
+                        {autoTradeEnabled ? 'ON' : 'OFF'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                
                 {tradeHistory && tradeHistory.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {tradeHistory.map((trade, i) => (
@@ -248,7 +314,7 @@ export default function RightSidebar({ asset }) {
                   </div>
                 ) : (
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0', border: '1px dashed var(--border-color)', borderRadius: '6px' }}>
-                    No automated trades executed yet. Enable Auto-Trading in Settings.
+                    No automated trades executed yet. Enable Auto-Trading to start.
                   </div>
                 )}
               </div>
@@ -279,6 +345,30 @@ export default function RightSidebar({ asset }) {
         <div style={{ display: 'flex', gap: '8px', color: color, fontWeight: 'bold', fontSize: '14px' }}>
           <span>{isPositive ? '+' : ''}{formatPrice(data.pointChange)}</span>
           <span>({isPositive ? '+' : ''}{data.pctChange.toFixed(2)}%)</span>
+        </div>
+        
+        {/* Manual Trade Buttons */}
+        <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+          <button 
+            onClick={() => handleManualTrade('BUY')}
+            style={{ flex: 1, padding: '10px', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid #10b981', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px', transition: 'all 0.2s' }}
+            onMouseOver={(e) => e.target.style.backgroundColor = '#10b981'}
+            onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(16, 185, 129, 0.1)'}
+            onMouseEnter={(e) => e.target.style.color = 'white'}
+            onMouseLeave={(e) => e.target.style.color = '#10b981'}
+          >
+            BUY NOW
+          </button>
+          <button 
+            onClick={() => handleManualTrade('SELL')}
+            style={{ flex: 1, padding: '10px', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px', transition: 'all 0.2s' }}
+            onMouseOver={(e) => e.target.style.backgroundColor = '#ef4444'}
+            onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'}
+            onMouseEnter={(e) => e.target.style.color = 'white'}
+            onMouseLeave={(e) => e.target.style.color = '#ef4444'}
+          >
+            SELL NOW
+          </button>
         </div>
       </div>
 

@@ -425,7 +425,12 @@ function App() {
         {/* Details Panel (Right Sidebar) */}
         {layoutSettings.showRightSidebar && (
           <div className="right-sidebar-container">
-            <RightSidebar asset={selectedAsset} />
+            <RightSidebar 
+              asset={selectedAsset} 
+              autoTradeEnabled={autoTradeEnabled}
+              toggleAutoTrade={toggleAutoTrade}
+              marketStatus={marketStatus}
+            />
           </div>
         )}
       </div>
