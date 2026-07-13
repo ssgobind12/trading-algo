@@ -18,6 +18,9 @@ export default function TradingChart({ symbol, timeframe = '1D', clearTrigger, a
   const lastAlertRef = useRef(null);
   const moodRef = useRef('Neutral');
   const latestPriceRef = useRef(null);
+  const zoneSignalRef = useRef(null);
+  const activeTradeRef = useRef(null);
+  const heroZeroAlertRef = useRef(null);
 
   const [panelPos, setPanelPos] = useState({ x: null, y: 16 });
   const [showChain, setShowChain] = useState(false);
@@ -651,8 +654,8 @@ export default function TradingChart({ symbol, timeframe = '1D', clearTrigger, a
         style={{ width: '100%', height: '100%', visibility: loading ? 'hidden' : 'visible' }} 
       />
       {zoneSignal && !activeTrade && (
-        <Draggable bounds="parent">
-          <div style={{
+        <Draggable bounds="parent" nodeRef={zoneSignalRef}>
+          <div ref={zoneSignalRef} style={{
             position: 'absolute',
             top: '16px',
             left: 'calc(50% - 150px)',
@@ -683,8 +686,8 @@ export default function TradingChart({ symbol, timeframe = '1D', clearTrigger, a
         </Draggable>
       )}
       {activeTrade && (
-        <Draggable bounds="parent">
-          <div style={{
+        <Draggable bounds="parent" nodeRef={activeTradeRef}>
+          <div ref={activeTradeRef} style={{
             position: 'absolute',
             top: '16px',
             left: 'calc(50% - 150px)',
@@ -707,8 +710,8 @@ export default function TradingChart({ symbol, timeframe = '1D', clearTrigger, a
       )}
       
       {heroZeroAlert && (
-        <Draggable bounds="parent">
-          <div style={{
+        <Draggable bounds="parent" nodeRef={heroZeroAlertRef}>
+          <div ref={heroZeroAlertRef} style={{
             position: 'absolute',
             top: activeTrade ? '70px' : zoneSignal ? '70px' : '16px',
             left: 'calc(50% - 160px)',
