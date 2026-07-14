@@ -73,10 +73,44 @@ export default function RightSidebar({ asset, autoTradeEnabled, toggleAutoTrade,
           return {
             ...prevData,
             currentPrice: update.price,
-            pointChange: update.price - prevData.dayLow, // Very rough approximation since we don't have open here easily
+            pointChange: update.price - prevData.dayLow,
           };
         });
       }
+      
+      // Update portfolio live PnL
+      setPortfolio(prevPort => {
+        if (!prevPort || !prevPort.holdings) return prevPort;
+        
+        let hasChanges = false;
+        const newHoldings = prevPort.holdings.map(h => {
+          // match symbol (using company_name since backend returns symbol_id as company_name for paper)
+          if (h.company_name === update.symbol || h.symbol === update.symbol) {
+             hasChanges = true;
+             
+             // Reverse engineer avg_price safely (avoid div by zero)
+             let avgPrice = h.current_price;
+             if (h.day_change_per !== 0) {
+                 avgPrice = h.current_price / (1 + (h.day_change_per || 0) / 100);
+             }
+             if (!avgPrice || avgPrice <= 0) avgPrice = h.current_price; // fallback
+             
+             const newDayChange = (update.price - avgPrice) * (h.quantity || 1);
+             const newDayChangePer = ((update.price - avgPrice) / avgPrice) * 100;
+             
+             return {
+                ...h,
+                current_price: update.price,
+                day_change: newDayChange,
+                day_change_per: newDayChangePer
+             };
+          }
+          return h;
+        });
+        
+        if (!hasChanges) return prevPort;
+        return { ...prevPort, holdings: newHoldings };
+      });
     });
 
     return () => socket.disconnect();
