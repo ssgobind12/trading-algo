@@ -71,20 +71,29 @@ export default function AdminPanel({ username }) {
   };
 
   const handleResetPaper = async (targetUsername) => {
-    if (!window.confirm(`Are you sure you want to reset the fake money for ${targetUsername} back to ₹5000? All paper trade history will be cleared.`)) return;
+    const defaultAmount = 5000;
+    const input = window.prompt(`Enter new fake money balance for ${targetUsername}:\n(Note: This will clear their paper trade history)`, defaultAmount);
+    
+    if (input === null) return; // User cancelled
+    
+    const newAmount = parseFloat(input);
+    if (isNaN(newAmount) || newAmount < 0) {
+      alert("Please enter a valid positive number.");
+      return;
+    }
     
     try {
       const res = await fetch('/api/admin/reset-paper', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_username: username, target_username: targetUsername })
+        body: JSON.stringify({ admin_username: username, target_username: targetUsername, amount: newAmount })
       });
       
       if (res.ok) {
-        alert(`Fake money reset to ₹5000 for ${targetUsername}!`);
+        alert(`Fake money set to ₹${newAmount} for ${targetUsername}!`);
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to reset paper money');
+        alert(data.error || 'Failed to set paper money');
       }
     } catch (err) {
       alert('Network error');
@@ -141,9 +150,9 @@ export default function AdminPanel({ username }) {
                   <button 
                     onClick={() => handleResetPaper(u.username)}
                     style={{ padding: '6px 12px', backgroundColor: 'transparent', color: '#3b82f6', border: '1px solid #3b82f6', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', marginLeft: '6px' }}
-                    title="Reset fake money to ₹5000"
+                    title="Set fake money balance"
                   >
-                    Reset Fake ₹
+                    Set Fake ₹
                   </button>
                 )}
               </div>
