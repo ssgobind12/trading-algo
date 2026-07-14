@@ -154,6 +154,19 @@ def background_thread():
             for symbol_key, ticker in SYMBOLS.items():
                 socketio.start_background_task(fetch_and_emit, symbol_key, ticker)
 
+def get_paper_holdings(username, symbol_id):
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute('SELECT side, quantity FROM trade_history WHERE username = ? AND symbol = ?', (username, symbol_id))
+        trades = c.fetchall()
+    qty = 0
+    for side, q in trades:
+        if side == 'BUY':
+            qty += q
+        elif side == 'SELL':
+            qty -= q
+    return qty
+
 def auto_trade_thread():
     """Background thread that executes automated trades based on AI signals"""
     print("Starting background auto-trade thread...")
@@ -214,6 +227,11 @@ def auto_trade_thread():
                                 # Execute paper trade
                                 if side == 'BUY' and paper_balance < cost:
                                     continue # Insufficient fake funds
+                                    
+                                if side == 'SELL':
+                                    held_qty = get_paper_holdings(username, symbol_key)
+                                    if held_qty < qty:
+                                        continue # Can't sell what we don't have
                                     
                                 new_balance = paper_balance - cost if side == 'BUY' else paper_balance + cost
                                 with sqlite3.connect(DB_FILE) as conn:
@@ -699,6 +717,25 @@ def get_news_sentiment():
 
 # --- AUTHENTICATION ENDPOINTS ---
 
+@app.route('/api/admin/reset-paper', methods=['POST'])
+def admin_reset_paper():
+    data = request.json
+    admin_username = data.get('admin_username')
+    target_username = data.get('target_username')
+    
+    if admin_username not in ADMIN_EMAILS:
+        return jsonify({'error': 'Unauthorized'}), 403
+        
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            c = conn.cursor()
+            c.execute('UPDATE users SET paper_balance = 5000 WHERE username = ?', (target_username,))
+            c.execute('DELETE FROM trade_history WHERE username = ?', (target_username,))
+            conn.commit()
+        return jsonify({'message': 'Paper balance reset successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/register', methods=['POST'])
 def register():
     data = request.json
@@ -1065,6 +1102,11 @@ def manual_trade():
                 if side == 'BUY' and paper_balance < cost:
                     return jsonify({'error': 'Insufficient paper balance'}), 400
                     
+                if side == 'SELL':
+                    held_qty = get_paper_holdings(username, symbol)
+                    if held_qty < qty:
+                        return jsonify({'error': 'Insufficient holdings to sell'}), 400
+                        
                 new_balance = paper_balance - cost if side == 'BUY' else paper_balance + cost
                 c.execute("UPDATE users SET paper_balance = ? WHERE username = ?", (new_balance, username))
                 c.execute('''INSERT INTO trade_history 
