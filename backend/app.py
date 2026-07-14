@@ -722,6 +722,7 @@ def admin_reset_paper():
     data = request.json
     admin_username = data.get('admin_username')
     target_username = data.get('target_username')
+    new_amount = float(data.get('amount', 5000))
     
     if admin_username not in ADMIN_EMAILS:
         return jsonify({'error': 'Unauthorized'}), 403
@@ -729,10 +730,10 @@ def admin_reset_paper():
     try:
         with sqlite3.connect(DB_FILE) as conn:
             c = conn.cursor()
-            c.execute('UPDATE users SET paper_balance = 5000 WHERE username = ?', (target_username,))
+            c.execute('UPDATE users SET paper_balance = ? WHERE username = ?', (new_amount, target_username))
             c.execute('DELETE FROM trade_history WHERE username = ?', (target_username,))
             conn.commit()
-        return jsonify({'message': 'Paper balance reset successfully'})
+        return jsonify({'message': f'Paper balance set to ₹{new_amount} successfully'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
