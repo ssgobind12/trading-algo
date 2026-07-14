@@ -724,7 +724,7 @@ def admin_reset_paper():
     target_username = data.get('target_username')
     new_amount = float(data.get('amount', 5000))
     
-    if admin_username not in ADMIN_EMAILS:
+    if admin_username not in ['admin', 'ssgobind12@gmail.com']:
         return jsonify({'error': 'Unauthorized'}), 403
         
     try:
