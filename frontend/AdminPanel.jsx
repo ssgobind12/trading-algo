@@ -70,6 +70,27 @@ export default function AdminPanel({ username }) {
     }
   };
 
+  const handleResetPaper = async (targetUsername) => {
+    if (!window.confirm(`Are you sure you want to reset the fake money for ${targetUsername} back to ₹5000? All paper trade history will be cleared.`)) return;
+    
+    try {
+      const res = await fetch('/api/admin/reset-paper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_username: username, target_username: targetUsername })
+      });
+      
+      if (res.ok) {
+        alert(`Fake money reset to ₹5000 for ${targetUsername}!`);
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to reset paper money');
+      }
+    } catch (err) {
+      alert('Network error');
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <div style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
@@ -114,6 +135,15 @@ export default function AdminPanel({ username }) {
                     style={{ padding: '6px 12px', backgroundColor: 'transparent', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
                   >
                     Delete
+                  </button>
+                )}
+                {u.status === 'approved' && (
+                  <button 
+                    onClick={() => handleResetPaper(u.username)}
+                    style={{ padding: '6px 12px', backgroundColor: 'transparent', color: '#3b82f6', border: '1px solid #3b82f6', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', marginLeft: '6px' }}
+                    title="Reset fake money to ₹5000"
+                  >
+                    Reset Fake ₹
                   </button>
                 )}
               </div>
